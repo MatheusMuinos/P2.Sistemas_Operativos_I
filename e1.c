@@ -12,6 +12,13 @@ int main() {
     *dinamica = 200;
     char buffer[100];
 
+    // Abrimos un fichero antes del fork
+    FILE *f = fopen("compartido.txt", "w+");
+    if (!f) {
+        perror("fopen");
+        exit(1);
+    }
+
     pid_t pid = fork();
 
     if (pid < 0) {
@@ -24,6 +31,10 @@ int main() {
     printf("Dirección de 'global':   %p, valor: %d\n", (void*)&global, global);
     printf("Dirección de 'local':    %p, valor: %d\n", (void*)&local, local);
     printf("Dirección de 'dinamica': %p, valor: %d\n", (void*)dinamica, *dinamica);
+
+    // Ambos procesos escriben en el fichero compartido
+    fprintf(f, "[%s] PID: %d\n", pid == 0 ? "HIJO" : "PADRE", getpid());
+    fflush(f);
 
     // Ambos procesos intentan leer del dispositivo de entrada
     printf("[%s] ANTES de scanf, esperando entrada...\n", pid == 0 ? "HIJO" : "PADRE");
@@ -49,6 +60,7 @@ int main() {
         printf("Dirección de 'dinamica': %p, valor: %d\n", (void*)dinamica, *dinamica);
     }
 
+    fclose(f);
     free(dinamica);
     return 0;
 }

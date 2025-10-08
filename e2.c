@@ -4,28 +4,42 @@
 #include <sys/wait.h>
 
 int main() {
-    pid_t hijo1 = fork();
+    pid_t hijo1, hijo2;
+    int estado;
 
-    if (hijo1 == 0) { // Primer hijo
-        printf("HIJO1: termino rapido\n");
-        exit(42); // código de salida
+    // Hijo1 (zombie)
+    hijo1 = fork();
+    if (hijo1 == 0) {
+        printf("Hijo1 (PID=%d) termina pronto\n", getpid());
+        sleep(1);
+        exit(5);
     }
 
-    pid_t hijo2 = fork();
+    // Hijo2
+    hijo2 = fork();
+    if (hijo2 == 0) {
+        printf("Hijo2 (PID=%d) ejecutándose y hará execvp\n", getpid());
+        fflush(stdout);
 
-    if (hijo2 == 0) { // Segundo hijo
-        printf("HIJO2: dormire 5s y luego exec\n");
-        sleep(5);
-        execlp("echo", "echo", "Hola desde exec!", NULL);
-        perror("exec fallo");
-        exit(1);
+        // Ejecutamos ls inmediatamente
+        char *args[] = {"ls", NULL};
+        execvp("ls", args);
+
+        // Si falla execvp
+        printf("Si ves este texto, execvp falló\n");
+        exit(10);
     }
 
-    // Padre espera al primer hijo
-    int status;
-    waitpid(hijo1, &status, 0);
-    printf("PADRE: HIJO1 salio con codigo %d\n", WEXITSTATUS(status));
+    // Padre
+    printf("Padre (PID=%d) esperando al primer hijo...\n", getpid());
+    pid_t hijo_terminado = wait(&estado);
+    if (WIFEXITED(estado)) {
+        printf("Padre: hijo con PID %d terminó, exit=%d\n",
+               hijo_terminado, WEXITSTATUS(estado));
+    }
 
-    printf("PADRE termina, HIJO2 puede volverse huerfano.\n");
+    printf("Padre (PID=%d) termina\n", getpid());
+
+    // Ya no hacemos sleep largo → la salida de hijo2 se verá
     return 0;
 }
