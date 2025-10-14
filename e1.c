@@ -63,4 +63,5 @@ int main() {
     fclose(f);
     free(dinamica);
     return 0;
+    
 }
