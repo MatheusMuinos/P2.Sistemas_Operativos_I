@@ -8,14 +8,14 @@
 
 #define FILE_NAME "resultados.txt"
 
-// Função para medir tempo em segundos
+// Tiempo actual en segundos (monotónico)
 double tempo_atual() {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return ts.tv_sec + ts.tv_nsec / 1e9;
 }
 
-// Função para calcular média de tan(sqrt(i)) de um intervalo
+// Media de tan(sqrt(i)) en [inicio, fim)
 double media_intervalo(int inicio, int fim) {
     double soma = 0.0;
     for (int i = inicio; i < fim; i++) {
@@ -25,25 +25,27 @@ double media_intervalo(int inicio, int fim) {
 }
 
 int main(int argc, char *argv[]) {
+    // Verifica argumentos
     if (argc != 3) {
         printf("Uso: %s N P\n", argv[0]);
         return 1;
     }
 
-    int N = atoi(argv[1]);
-    int P = atoi(argv[2]);
-    int parte = N / P;
-    int resto = N % P;
+    int N = atoi(argv[1]);   // Total de elementos
+    int P = atoi(argv[2]);   // Nº de procesos parciales
+    int parte = N / P;       // Tamaño base de cada bloque
+    int resto = N % P;       // Resto para el último
 
+    // Inicializa archivo de resultados
     FILE *f = fopen(FILE_NAME, "w");
     if (!f) {
         perror("Erro ao abrir arquivo");
         return 1;
     }
-    fprintf(f, "# Formato: tipo | processo | média | tempo (s)\n");
+    fprintf(f, "# Formato: tipo | proceso | média | tempo (s)\n");
     fclose(f);
 
-    // --- 1. Processos filhos para cálculo parcial ---
+    // 1) Lanzar P hijos para intervalos parciales
     for (int i = 0; i < P; i++) {
         if (fork() == 0) {
             int ini = i * parte;
@@ -52,23 +54,22 @@ int main(int argc, char *argv[]) {
             double inicio_t = tempo_atual();
             double media = media_intervalo(ini, fim);
             double fim_t = tempo_atual();
-
             double tempo = fim_t - inicio_t;
 
-            FILE *f2 = fopen(FILE_NAME, "a");
+            FILE *f2 = fopen(FILE_NAME, "a"); // Append resultado parcial
             fprintf(f2, "PARCIAL | %d | %.10f | %.5f\n", i, media, tempo);
             fclose(f2);
 
-            printf("Hijo %d: intervalo [%d,%d), media=%.10f, tempo=%.3fs\n", 
-                    i, ini, fim, media, tempo);
-            exit(0);
+            printf("Hijo %d: intervalo [%d,%d), media=%.10f, tempo=%.3fs\n",
+                   i, ini, fim, media, tempo);
+            exit(0); // Termina hijo
         }
     }
 
-    // Esperar os P filhos
+    // Espera todos los hijos parciales
     for (int i = 0; i < P; i++) wait(NULL);
 
-    // --- 2. Filho P+1: lê as parciais e calcula a média geral ---
+    // 2) Hijo agregador: calcula media global a partir de parciales
     if (fork() == 0) {
         double soma = 0.0;
         int count = 0;
@@ -79,6 +80,7 @@ int main(int argc, char *argv[]) {
         int id;
         double media, tempo;
 
+        // Lee líneas PARCIAL
         while (fscanf(f3, "%s | %d | %lf | %lf\n", tipo, &id, &media, &tempo) == 4) {
             if (strcmp(tipo, "PARCIAL") == 0) {
                 soma += media;
@@ -87,7 +89,7 @@ int main(int argc, char *argv[]) {
         }
         fclose(f3);
 
-        double media_final = soma / count;
+        double media_final = soma / count; // Nota: no pondera tamaños
         double fim_t = tempo_atual();
         double tempo_total = fim_t - inicio_t;
 
@@ -99,7 +101,7 @@ int main(int argc, char *argv[]) {
         exit(0);
     }
 
-    // --- 3. Filho P+2: cálculo sequencial completo ---
+    // 3) Hijo secuencial: calcula media completa directa
     if (fork() == 0) {
         double inicio_t = tempo_atual();
         double media_total = media_intervalo(0, N);
@@ -114,10 +116,10 @@ int main(int argc, char *argv[]) {
         exit(0);
     }
 
-    // Esperar os dois filhos extras
+    // Espera agregador y completo
     for (int i = 0; i < 2; i++) wait(NULL);
 
-    // --- 4. Pai lê resultados e compara ---
+    // 4) Padre lee resultados finales y compara
     FILE *f6 = fopen(FILE_NAME, "r");
     if (!f6) {
         perror("Erro ao reabrir arquivo");
@@ -130,6 +132,7 @@ int main(int argc, char *argv[]) {
     double media_agregada = 0.0, media_completa = 0.0;
     double tempo_agregado = 0.0, tempo_completo = 0.0;
 
+    // Extrae líneas AGREGADO y COMPLETO
     while (fscanf(f6, "%s | %d | %lf | %lf\n", tipo, &id, &media, &tempo) == 4) {
         if (strcmp(tipo, "AGREGADO") == 0) {
             media_agregada = media;
@@ -141,6 +144,7 @@ int main(int argc, char *argv[]) {
     }
     fclose(f6);
 
+    // Salida resumen
     printf("\n=== RESULTADOS FINAIS ===\n");
     printf("Média paralela (agregada): %.10f\n", media_agregada);
     printf("Média sequencial (completa): %.10f\n", media_completa);
