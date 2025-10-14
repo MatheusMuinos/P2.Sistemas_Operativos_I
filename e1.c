@@ -1,3 +1,5 @@
+//Codigo de Matheus Muiños y Anton Jaureguizar
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
